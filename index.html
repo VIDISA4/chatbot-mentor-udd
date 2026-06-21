@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mentor Docente UDD</title>
+  <link rel="icon" type="image/png" href="assets/logo-mark.png" />
+  <link rel="apple-touch-icon" href="assets/logo-mark.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Inter:wght@400;450;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Pantalla de inicio de sesión (Fase 1.3a) -->
+  <div class="login" id="login">
+    <form class="login-card" id="loginForm" autocomplete="off">
+      <img class="login-logo" src="assets/logo-udd.png" alt="Universidad del Desarrollo — Facultad de Ingeniería" />
+      <h1 class="login-title">Mentor Docente</h1>
+      <p class="login-sub">Acceso para docentes autorizados</p>
+      <div class="login-field">
+        <label for="loginUser">Usuario</label>
+        <input id="loginUser" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" />
+      </div>
+      <div class="login-field">
+        <label for="loginPass">Contraseña</label>
+        <input id="loginPass" type="password" autocomplete="current-password" />
+      </div>
+      <button class="login-btn" id="loginBtn" type="submit">Entrar</button>
+      <p class="login-error" id="loginError" role="alert"></p>
+      <p class="login-note">No compartas tu acceso. Tu sesión queda solo en este navegador.</p>
+    </form>
+  </div>
+
+  <div class="app" id="app" hidden>
+    <!-- Encabezado -->
+    <header class="topbar">
+      <div class="brand">
+        <button class="icon-btn menu-btn" id="menuBtn" type="button" title="Conversaciones" aria-label="Ver conversaciones">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+        <div class="brand-mark" aria-hidden="true">
+          <img class="brand-logo" src="assets/logo-mark.png" alt="" onerror="this.remove()" />
+        </div>
+        <div class="brand-text">
+          <span class="brand-name">Mentor Docente</span>
+          <span class="brand-sub">Facultad de Ingeniería · UDD</span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="status" id="status">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="statusText">Conectando…</span>
+        </div>
+        <span class="session-note" id="sessionNote" title="Tus conversaciones se guardan solo en esta pestaña del navegador. Al cerrarla, se borran.">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="11" x2="12" y2="16"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+          <span class="session-note-text">Temporal</span>
+        </span>
+        <span class="user-chip" id="userChip" hidden></span>
+        <button class="logout" id="logoutBtn" type="button" hidden>Salir</button>
+      </div>
+    </header>
+
+    <!-- Conversación -->
+    <main class="conversation" id="conversation">
+      <div class="welcome" id="welcome">
+        <p class="welcome-eyebrow">Bienvenido</p>
+        <h1 class="welcome-title">¿En qué estás trabajando<br />con tus estudiantes?</h1>
+        <p class="welcome-body">
+          No estoy aquí para darte respuestas, sino para acompañarte a pensar.
+          Cuéntame un desafío de tu docencia y lo exploramos juntos.
+        </p>
+        <div class="suggestions">
+          <button class="chip" data-prompt="Tengo baja participación de los estudiantes en clases y no sé cómo abordarlo.">Baja participación en clases</button>
+          <button class="chip" data-prompt="Quiero mejorar la forma en que doy retroalimentación a mis estudiantes.">Mejorar mi retroalimentación</button>
+          <button class="chip" data-prompt="Estoy pensando en implementar una metodología activa pero tengo dudas.">Implementar metodología activa</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Botón flotante: volver al último mensaje -->
+    <button class="scroll-bottom" id="scrollBottomBtn" type="button" aria-label="Ir al final de la conversación" hidden>
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="6 9 12 15 18 9"></polyline>
+      </svg>
+    </button>
+
+    <!-- Entrada -->
+    <footer class="composer">
+      <div class="composer-inner">
+        <textarea
+          id="input"
+          rows="1"
+          placeholder="Escribe lo que tienes en mente…"
+          autocomplete="off"
+        ></textarea>
+        <button id="send" class="send" aria-label="Enviar mensaje">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="19" x2="12" y2="5"></line>
+            <polyline points="5 12 12 5 19 12"></polyline>
+          </svg>
+        </button>
+      </div>
+      <p class="composer-note">El mentor orienta con preguntas. No compartas datos personales de estudiantes.</p>
+    </footer>
+
+    <!-- Drawer de conversaciones (solo esta pestaña del navegador) -->
+    <div class="drawer-backdrop" id="drawerBackdrop"></div>
+    <aside class="drawer" id="drawer" aria-label="Conversaciones">
+      <div class="drawer-head">
+        <span class="drawer-title">Conversaciones</span>
+        <button class="icon-btn" id="drawerCloseBtn" type="button" title="Cerrar" aria-label="Cerrar panel">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <button class="drawer-new" id="newConvBtn" type="button">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        Nueva conversación
+      </button>
+      <div class="drawer-list" id="drawerList"></div>
+      <p class="drawer-note">Estas conversaciones se guardan solo en esta pestaña del navegador. Al cerrarla, se borran.</p>
+    </aside>
+  </div>
+
+  <!-- Configuración local (NO se sube a GitHub). Edita config.js con tu API key. -->
+  <script src="config.js"></script>
+  <script src="mentor.js"></script>
+  <script src="auth.js"></script>
+</body>
+</html>
