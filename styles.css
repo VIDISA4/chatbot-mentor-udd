@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   /* Identidad visual oficial UDD — azul muestreado del logo real (#085CA3) */
   --udd-blue:       #085CA3;   /* azul UDD primario (acento principal) */
   --udd-blue-dark:  #064B85;   /* hover, profundidad, texto sobre claro */
@@ -12,12 +13,21 @@
 
   /* Tokens semánticos derivados (conservan los nombres que usa el resto del CSS) */
   --user-bubble: var(--udd-blue);   /* burbuja del usuario = azul UDD */
-  --user-text:   var(--paper);      /* texto claro sobre azul */
+  --on-accent:   #FFFFFF;           /* texto/íconos SOBRE azul (fijo, no sigue al tema) */
+  --user-text:   var(--on-accent);  /* texto claro sobre la burbuja azul */
   --ok:          #4f7a52;           /* estado conectado (verde semántico — se conserva) */
   --warn:        var(--gold);       /* estado de aviso (único uso del dorado) */
   --err:         #a8412f;           /* estado de error (rojo semántico — se conserva) */
 
   --surface-elevated: #FFFFFF;   /* tarjetas / superficies elevadas sobre el fondo frío */
+
+  /* Colores antes hardcodeados, ahora tokenizados (los redefine el tema oscuro) */
+  --bg-tint:            #E8EFF6;              /* tinte del degradado de fondo */
+  --topbar-bg:          rgba(255, 255, 255, .82);
+  --scroll-thumb-hover: #C2CEDB;
+  --backdrop:           rgba(13, 58, 102, .28);
+  --danger-soft:        #FBEAE6;             /* fondo del botón eliminar en hover */
+  --logo-bg:            #FFFFFF;             /* disco bajo el monograma (fijo en ambos temas) */
 
   /* Profundidad — sombras suaves y frías derivadas del azul UDD */
   --shadow-sm: 0 1px 2px rgba(13, 58, 102, .05), 0 1px 3px rgba(13, 58, 102, .06);
@@ -31,6 +41,55 @@
   --maxw: 760px;
 }
 
+/* ---------- Tema oscuro ---------- */
+/* Se activa con data-theme="dark" en <html> (lo fija el script anti-FOUC del
+   <head> según la preferencia guardada o prefers-color-scheme). Redefine solo
+   los tokens; el resto del CSS los consume sin cambios. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --udd-blue:       #4C9FE0;   /* azul aclarado: contrasta como texto/ícono sobre oscuro */
+  --udd-blue-dark:  #7FBCEA;   /* "hover más profundo" se invierte: más claro */
+  --udd-blue-light: #12314B;   /* fondos sutiles, chips */
+  --ink:            #E7EDF5;
+  --ink-soft:       #9DAEC2;
+  --paper:          #0D141E;
+  --surface:        #16202C;
+  --line:           #2C3B4E;
+  --gold:           #D9B366;
+
+  --user-bubble: #0A66B2;      /* explícito: blanco sobre este azul cumple AA (~5.5:1) */
+  --ok:          #6FA873;
+  --err:         #D97F6C;
+
+  --surface-elevated: #1A2634;
+
+  --bg-tint:            #131E2B;
+  --topbar-bg:          rgba(13, 20, 30, .75);
+  --scroll-thumb-hover: #3A4C63;
+  --backdrop:           rgba(0, 0, 0, .55);
+  --danger-soft:        rgba(217, 127, 108, .15);
+
+  /* En oscuro las sombras pesan menos; los bordes (--line) hacen de separador. */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .35);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, .45);
+  --shadow-lg: 0 12px 30px rgba(0, 0, 0, .55), 0 3px 8px rgba(0, 0, 0, .4);
+  --focus-ring: 0 0 0 3px rgba(76, 159, 224, .32);
+}
+
+/* El logo del login lleva texto negro sobre fondo transparente: en oscuro se
+   pierde. Se le pone un respaldo blanco (no filtros: el logo es bicolor). */
+:root[data-theme="dark"] .login-logo {
+  background: #FFFFFF;
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+
+/* Botón de tema: el ícono visible depende del tema activo. */
+.theme-btn .icon-moon { display: none; }
+.theme-btn .icon-sun  { display: block; }
+:root[data-theme="dark"] .theme-btn .icon-sun  { display: none; }
+:root[data-theme="dark"] .theme-btn .icon-moon { display: block; }
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 [hidden] { display: none !important; }
@@ -40,7 +99,7 @@ html, body { height: 100%; }
 body {
   font-family: var(--font-body);
   background: var(--paper);
-  background-image: radial-gradient(120% 85% at 50% -12%, #E8EFF6 0%, var(--paper) 58%);
+  background-image: radial-gradient(120% 85% at 50% -12%, var(--bg-tint) 0%, var(--paper) 58%);
   background-attachment: fixed;
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
@@ -72,7 +131,7 @@ body {
   gap: 12px;
   padding: 13px 24px;
   border-bottom: 1px solid var(--line);
-  background: rgba(255, 255, 255, .82);
+  background: var(--topbar-bg);
   -webkit-backdrop-filter: saturate(180%) blur(12px);
   backdrop-filter: saturate(180%) blur(12px);
 }
@@ -86,7 +145,7 @@ body {
 .brand-mark {
   width: 38px; height: 38px;
   border-radius: 50%;
-  background: var(--surface-elevated);
+  background: var(--logo-bg);
   border: 1px solid var(--line);
   display: grid;
   place-items: center;
@@ -144,7 +203,7 @@ body {
 }
 .session-note svg { color: var(--udd-blue); opacity: .85; flex-shrink: 0; }
 
-/* Botón de ícono (limpiar conversación) */
+/* Botón de ícono (menú, cerrar drawer, tema) */
 .icon-btn {
   display: grid;
   place-items: center;
@@ -177,7 +236,7 @@ body {
   border-radius: 999px;
   border: 3px solid var(--surface-elevated);
 }
-.conversation::-webkit-scrollbar-thumb:hover { background: #C2CEDB; }
+.conversation::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover); }
 
 .welcome {
   max-width: var(--maxw);
@@ -192,6 +251,15 @@ body {
   color: var(--udd-blue);
   font-weight: 600;
   margin-bottom: 14px;
+}
+/* Único acento dorado del área principal: fina línea bajo el "eyebrow". */
+.welcome-eyebrow::after {
+  content: "";
+  display: block;
+  width: 32px; height: 2px;
+  margin-top: 8px;
+  border-radius: 2px;
+  background: var(--gold);
 }
 .welcome-title {
   font-family: var(--font-display);
@@ -219,8 +287,14 @@ body {
   padding: 9px 16px;
   cursor: pointer;
   transition: all .18s ease;
+  animation: rise .5s ease both;
 }
+/* Entrada escalonada de los chips de sugerencia. */
+.chip:nth-child(1) { animation-delay: .06s; }
+.chip:nth-child(2) { animation-delay: .14s; }
+.chip:nth-child(3) { animation-delay: .22s; }
 .chip:hover { border-color: var(--udd-blue); color: var(--udd-blue); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.chip:active { transform: translateY(0) scale(.98); }
 .chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* Mensajes */
@@ -245,7 +319,7 @@ body {
   width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
   display: grid; place-items: center;
   overflow: hidden;
-  background: var(--surface-elevated);
+  background: var(--logo-bg);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-sm);
   margin-top: 1px;
@@ -277,6 +351,30 @@ body {
 .msg.mentor .bubble strong { font-weight: 600; }
 .msg.mentor .bubble em { font-style: italic; color: var(--ink-soft); }
 
+/* Markdown enriquecido (listas, código, enlaces) dentro de la respuesta. */
+.msg.mentor .bubble ul,
+.msg.mentor .bubble ol { margin: 0 0 12px; padding-left: 22px; }
+.msg.mentor .bubble ul:last-child,
+.msg.mentor .bubble ol:last-child { margin-bottom: 0; }
+.msg.mentor .bubble li { margin-bottom: 6px; }
+.msg.mentor .bubble li:last-child { margin-bottom: 0; }
+.msg.mentor .bubble li::marker { color: var(--udd-blue); }
+.msg.mentor .bubble code {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: .9em;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+.msg.mentor .bubble a {
+  color: var(--udd-blue);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color .15s;
+}
+.msg.mentor .bubble a:hover { color: var(--udd-blue-dark); }
+
 /* Acciones por mensaje (copiar) — discretas, se revelan al pasar el mouse */
 .msg-actions { margin-top: 9px; min-height: 26px; }
 .copy-btn {
@@ -292,13 +390,13 @@ body {
   padding: 4px 9px;
   cursor: pointer;
   opacity: 0;
-  transition: opacity .16s, color .16s, border-color .16s, background .16s;
+  transition: opacity .16s, color .16s, border-color .16s, background .16s, transform .16s;
 }
 .msg.mentor:hover .copy-btn,
 .msg.mentor:focus-within .copy-btn,
 .copy-btn:focus-visible,
 .copy-btn.copied { opacity: 1; }
-.copy-btn:hover { color: var(--udd-blue); border-color: var(--udd-blue); background: var(--udd-blue-light); }
+.copy-btn:hover { color: var(--udd-blue); border-color: var(--udd-blue); background: var(--udd-blue-light); transform: translateY(-1px); }
 .copy-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .copy-btn.copied { color: var(--ok); border-color: var(--ok); }
 @media (hover: none) { .copy-btn { opacity: 1; } }
@@ -313,6 +411,19 @@ body {
 }
 .thinking span:nth-child(2) { animation-delay: .2s; }
 .thinking span:nth-child(3) { animation-delay: .4s; }
+/* Etiqueta de estado junto a los puntos ("Reintentando…"). Anula el estilo
+   de puntito que .thinking span le daría al span de texto. */
+.thinking .thinking-label {
+  width: auto; height: auto;
+  border-radius: 0;
+  background: none;
+  opacity: 1;
+  animation: rise .25s ease both;
+  font-size: .78rem;
+  color: var(--ink-soft);
+  margin-left: 4px;
+  align-self: center;
+}
 
 /* ---------- Entrada ---------- */
 .composer {
@@ -355,7 +466,7 @@ body {
   border: none;
   border-radius: 12px;
   background: var(--udd-blue);
-  color: var(--paper);
+  color: var(--on-accent);
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -363,6 +474,7 @@ body {
   transition: background .18s, transform .18s, opacity .18s;
 }
 .send:hover:not(:disabled) { background: var(--udd-blue-dark); transform: translateY(-1px); }
+.send:active:not(:disabled) { transform: scale(.94); }
 .send:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .send:disabled { opacity: .4; cursor: not-allowed; }
 
@@ -403,7 +515,7 @@ body {
   place-items: center;
   padding: 24px;
   background: var(--paper);
-  background-image: radial-gradient(120% 85% at 50% -12%, #E8EFF6 0%, var(--paper) 58%);
+  background-image: radial-gradient(120% 85% at 50% -12%, var(--bg-tint) 0%, var(--paper) 58%);
   z-index: 10;
 }
 .login-card {
@@ -461,7 +573,7 @@ body {
   font-family: var(--font-body);
   font-size: 1rem;
   font-weight: 500;
-  color: var(--paper);
+  color: var(--on-accent);
   background: var(--udd-blue);
   border: none;
   border-radius: 10px;
@@ -512,7 +624,7 @@ body {
 .drawer-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(13, 58, 102, .28);
+  background: var(--backdrop);
   opacity: 0;
   pointer-events: none;
   transition: opacity .22s ease;
@@ -558,7 +670,7 @@ body {
   font-family: var(--font-body);
   font-size: .9rem;
   font-weight: 500;
-  color: var(--paper);
+  color: var(--on-accent);
   background: var(--udd-blue);
   border: none;
   border-radius: 10px;
@@ -584,10 +696,11 @@ body {
   padding: 9px 10px;
   border-radius: 10px;
   cursor: pointer;
-  transition: background .15s;
+  transition: background .15s, transform .12s, box-shadow .15s;
 }
 .conv-item:hover { background: var(--surface); }
-.conv-item.active { background: var(--udd-blue-light); }
+.conv-item:active { transform: scale(.99); }
+.conv-item.active { background: var(--udd-blue-light); box-shadow: inset 3px 0 0 var(--udd-blue); }
 .conv-main { flex: 1; min-width: 0; }
 .conv-title {
   font-size: .88rem;
@@ -611,7 +724,7 @@ body {
   transition: opacity .15s, color .15s, background .15s;
 }
 .conv-item:hover .conv-del, .conv-item.active .conv-del { opacity: 1; }
-.conv-del:hover { color: var(--err); background: #FBEAE6; }
+.conv-del:hover { color: var(--err); background: var(--danger-soft); }
 .conv-del:focus-visible { outline: none; box-shadow: var(--focus-ring); opacity: 1; }
 @media (hover: none) { .conv-del { opacity: 1; } }
 
@@ -637,18 +750,59 @@ body {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
 
+/* Escritorio ancho: el panel de conversaciones queda fijo como barra lateral
+   (sin superponerse). Solo CSS: el JS de abrir/cerrar drawer queda neutralizado
+   por position:static + transform:none, y refreshDrawer() ya mantiene la lista
+   al día en cada cambio. */
+@media (min-width: 1200px) {
+  .app {
+    max-width: 1380px;
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    grid-template-rows: auto 1fr auto;
+  }
+  .topbar       { grid-column: 2; grid-row: 1; }
+  .conversation { grid-column: 2; grid-row: 2; min-height: 0; }
+  .composer     { grid-column: 2; grid-row: 3; }
+  .drawer {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    position: static;
+    width: auto;
+    max-width: none;
+    transform: none;
+    box-shadow: none;
+    border-right: 1px solid var(--line);
+    z-index: auto;
+  }
+  .drawer-list { min-height: 0; }
+  .drawer-backdrop { display: none; }
+  .menu-btn, #drawerCloseBtn { display: none; }
+  :root { --maxw: 820px; }
+}
+
+/* Tablet: contenido algo más angosto y aire lateral. */
+@media (max-width: 900px) {
+  :root { --maxw: 680px; }
+  .conversation { padding: 28px 20px 8px; }
+}
+
 @media (max-width: 600px) {
   .topbar { padding: 12px 14px; gap: 8px; }
   .topbar-right { gap: 8px; }
   .brand-sub { display: none; }
   .session-note-text { display: none; }
   .session-note { padding: 5px 7px; }
+  #statusText { display: none; }
+  .status { gap: 0; }
   .conversation { padding: 24px 16px 8px; }
   .composer { padding: 10px 16px 16px; }
   .welcome { margin-top: 3vh; }
   .scroll-bottom { right: 16px; bottom: 104px; }
 }
 @media (max-width: 460px) {
-  #statusText { display: none; }
-  .status { gap: 0; }
+  /* En pantallas muy angostas priorizamos el chat: se ocultan el aviso
+     "Temporal" y el chip de usuario (queda visible "Salir", que es la acción). */
+  .session-note { display: none; }
+  .user-chip { display: none; }
 }

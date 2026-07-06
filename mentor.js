@@ -132,7 +132,12 @@ document.querySelectorAll(".chip").forEach((chip) => {
   });
 });
 
+// Evita envíos dobles: los chips de sugerencia llaman handleSend() directo,
+// así que con solo deshabilitar el input no basta.
+let isSending = false;
+
 async function handleSend() {
+  if (isSending) return;
   const text = inputEl.value.trim();
   if (!text) return;
 
@@ -157,6 +162,7 @@ async function handleSend() {
   // Limpia el input
   inputEl.value = "";
   inputEl.style.height = "auto";
+  isSending = true;
   inputEl.disabled = true;
   sendBtn.disabled = true;
 
@@ -164,7 +170,10 @@ async function handleSend() {
   const thinkingEl = addThinking();
 
   try {
-    const reply = await callGemini(history);
+    const reply = await callGeminiWithRetry(history, (attempt) => {
+      setStatus("warn", "Reintentando… (" + attempt + "/" + MAX_ATTEMPTS + ")");
+      setThinkingLabel(thinkingEl, "Reintentando…");
+    });
     thinkingEl.remove();
     addMentorMessage(reply);
     history.push({ role: "model", text: reply });
@@ -173,19 +182,109 @@ async function handleSend() {
   } catch (err) {
     thinkingEl.remove();
     console.error(err);
-    addMentorMessage(
-      "Hubo un problema al conectar con el mentor. Revisa tu conexión y tu " +
-      "API key, y vuelve a intentarlo. _(" + (err.message || "error desconocido") + ")_"
-    );
-    setStatus("err", "Error de conexión");
+    const fe = friendlyError(err);
+    addMentorMessage(fe.text);
+    setStatus("err", fe.statusText);
   } finally {
+    isSending = false;
     inputEl.disabled = false;
     updateSendState();
     inputEl.focus();
   }
 }
 
-// ---- 7. Llamada a la API de Gemini ----
+// ---- 7. Llamada a la API de Gemini (con reintentos) ----
+
+// Error de API con lo necesario para decidir si conviene reintentar.
+class ApiError extends Error {
+  constructor(status, message, retryAfterMs) {
+    super(message);
+    this.status = status;                  // 0 = fallo de red (fetch rechazado)
+    this.retryAfterMs = retryAfterMs || null;
+  }
+}
+
+const MAX_ATTEMPTS = 3;                    // 1 intento + 2 reintentos
+const RETRYABLE_STATUS = [0, 429, 500, 502, 503, 504];
+const MAX_RETRY_DELAY_MS = 15000;          // espera mayor = cuota diaria agotada: no insistir
+
+// Google incluye RetryInfo en los 429:
+//   error.details: [{ "@type": ".../google.rpc.RetryInfo", retryDelay: "12s" }]
+function parseRetryDelay(errJson) {
+  const details = errJson?.error?.details;
+  if (!Array.isArray(details)) return null;
+  for (const d of details) {
+    if (d && typeof d.retryDelay === "string") {
+      const secs = parseFloat(d.retryDelay);
+      if (!isNaN(secs) && secs >= 0) return Math.round(secs * 1000);
+    }
+  }
+  return null;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Reintenta ante errores transitorios (rate limit, caídas del servicio, red).
+// Respeta el retryDelay que sugiere Gemini; sin sugerencia usa backoff
+// exponencial con jitter (~1.2-1.6 s, luego ~2.4-2.8 s).
+async function callGeminiWithRetry(hist, onRetry) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await callGemini(hist);
+    } catch (err) {
+      const retryable = err instanceof ApiError && RETRYABLE_STATUS.includes(err.status);
+      if (!retryable || attempt >= MAX_ATTEMPTS) throw err;
+      if (err.retryAfterMs && err.retryAfterMs > MAX_RETRY_DELAY_MS) throw err;
+      const delay =
+        err.retryAfterMs || 1200 * Math.pow(2, attempt - 1) + Math.random() * 400;
+      if (onRetry) onRetry(attempt + 1, delay);
+      await sleep(delay);
+    }
+  }
+}
+
+// Traduce el error técnico a un mensaje claro para el docente.
+function friendlyError(err) {
+  const status = err instanceof ApiError ? err.status : null;
+  if (status === 429) {
+    return {
+      text:
+        "El mentor está recibiendo muchas consultas y alcanzamos el límite " +
+        "gratuito por ahora. Espera un minuto y vuelve a intentarlo.",
+      statusText: "Límite de uso",
+    };
+  }
+  if (status === 401) {
+    return { text: err.message, statusText: "Sesión expirada" };
+  }
+  if (status === 403) {
+    return {
+      text: "Este sitio no está autorizado para conectarse al mentor. Avisa al administrador.",
+      statusText: "No autorizado",
+    };
+  }
+  if (status === 0) {
+    return {
+      text: "No se pudo conectar. Revisa tu conexión a internet e inténtalo de nuevo.",
+      statusText: "Sin conexión",
+    };
+  }
+  if (status >= 500) {
+    return {
+      text: "El servicio del mentor tuvo un problema temporal. Vuelve a intentarlo en unos segundos.",
+      statusText: "Error del servicio",
+    };
+  }
+  return {
+    text:
+      "Hubo un problema al conectar con el mentor. Vuelve a intentarlo. " +
+      "_(" + (err.message || "error desconocido") + ")_",
+    statusText: "Error",
+  };
+}
+
 async function callGemini(hist) {
   const contents = hist.map((m) => ({
     role: m.role,
@@ -216,25 +315,37 @@ async function callGemini(hist) {
       cfg.MODEL + ":generateContent?key=" + encodeURIComponent(cfg.GEMINI_API_KEY);
   }
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+  } catch (_) {
+    // fetch rechazado (sin red, DNS, CORS): error de conexión, reintentable.
+    throw new ApiError(0, "No hay conexión con el servidor.");
+  }
 
   // Token inválido o expirado: vuelve a pedir inicio de sesión.
   if (res.status === 401 && usingProxy()) {
     if (window.MENTOR_AUTH) window.MENTOR_AUTH.logout();
-    throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
+    throw new ApiError(401, "Tu sesión expiró. Vuelve a iniciar sesión.");
   }
 
   if (!res.ok) {
     let detail = "";
+    let retryAfterMs = null;
     try {
       const e = await res.json();
       detail = e.error?.message || "";
+      retryAfterMs = parseRetryDelay(e);
     } catch (_) {}
-    throw new Error("HTTP " + res.status + (detail ? " — " + detail : ""));
+    throw new ApiError(
+      res.status,
+      "HTTP " + res.status + (detail ? " — " + detail : ""),
+      retryAfterMs
+    );
   }
 
   const data = await res.json();
@@ -372,19 +483,119 @@ function addThinking() {
   return msg;
 }
 
-// Formato mínimo: **negrita**, _cursiva_, saltos de párrafo. Escapa HTML.
-function formatText(text) {
-  const escaped = text
+// Etiqueta junto a los puntos de "pensando" (p. ej. "Reintentando…").
+function setThinkingLabel(thinkingMsgEl, text) {
+  if (!thinkingMsgEl) return;
+  const think = thinkingMsgEl.querySelector(".thinking");
+  if (!think) return;
+  let label = think.querySelector(".thinking-label");
+  if (!label) {
+    label = document.createElement("span");
+    label.className = "thinking-label";
+    think.appendChild(label);
+  }
+  label.textContent = text;
+}
+
+// Markdown ligero, sin librerías. Pipeline seguro: 1) escapar HTML,
+// 2) agrupar bloques (listas, títulos, párrafos), 3) marcas inline.
+// Soporta: **negrita**, _cursiva_, `código`, [texto](url http/https),
+// listas con - o *, listas numeradas, títulos # a #### y párrafos.
+
+function escapeHtml(text) {
+  return text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-  const withMarks = escaped
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;"); // necesario: hay URLs dentro de href="…"
+}
+
+// Solo enlaces http(s); cualquier otro esquema (javascript:, data:…) se descarta.
+function sanitizeUrl(url) {
+  return /^https?:\/\//i.test(url) ? url : null;
+}
+
+// Marcas inline sobre texto YA escapado. Los placeholders (NUL + índice + NUL)
+// protegen el interior de `código` y las etiquetas <a> de las demás marcas;
+// el carácter nulo no puede aparecer en el texto ya escapado.
+function renderInline(escaped) {
+  const stash = [];
+  const NUL = String.fromCharCode(0);
+  const keep = (html) => NUL + (stash.push(html) - 1) + NUL;
+
+  const out = escaped
+    // `código` — primero: su interior no debe recibir más formato
+    .replace(/`([^`\n]+)`/g, (_, code) => keep("<code>" + code + "</code>"))
+    // [texto](url) — antes que la cursiva (las URLs suelen traer "_")
+    .replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, (match, label, url) => {
+      const safe = sanitizeUrl(url);
+      if (!safe) return match; // esquema no permitido: queda como texto plano
+      return (
+        keep('<a href="' + safe + '" target="_blank" rel="noopener noreferrer">') +
+        label + keep("</a>")
+      );
+    })
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/(?:_)(.+?)(?:_)/g, "<em>$1</em>");
-  return withMarks
-    .split(/\n\s*\n/)
-    .map((p) => "<p>" + p.replace(/\n/g, "<br>") + "</p>")
-    .join("");
+    // _cursiva_ acotada a límites de palabra (no rompe snake_case ni URLs)
+    .replace(/(^|[\s(¿¡"'])_([^_\n]+)_(?=[\s).,;:!?"']|$)/gm, "$1<em>$2</em>");
+
+  return out.replace(new RegExp(NUL + "(\\d+)" + NUL, "g"), (_, i) => stash[Number(i)]);
+}
+
+function formatText(text) {
+  const lines = escapeHtml(text).split("\n");
+  const isBullet   = (l) => /^\s*[-*]\s+/.test(l);
+  const isNumbered = (l) => /^\s*\d+[.)]\s+/.test(l);
+  const isHeading  = (l) => /^\s*#{1,4}\s+/.test(l);
+  const isBlank    = (l) => /^\s*$/.test(l);
+
+  const html = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+
+    if (isBlank(line)) { i++; continue; }
+
+    if (isBullet(line)) {
+      const items = [];
+      while (i < lines.length && isBullet(lines[i])) {
+        items.push("<li>" + renderInline(lines[i].replace(/^\s*[-*]\s+/, "")) + "</li>");
+        i++;
+      }
+      html.push("<ul>" + items.join("") + "</ul>");
+      continue;
+    }
+
+    if (isNumbered(line)) {
+      const items = [];
+      while (i < lines.length && isNumbered(lines[i])) {
+        items.push("<li>" + renderInline(lines[i].replace(/^\s*\d+[.)]\s+/, "")) + "</li>");
+        i++;
+      }
+      html.push("<ol>" + items.join("") + "</ol>");
+      continue;
+    }
+
+    if (isHeading(line)) {
+      const content = line.replace(/^\s*#{1,4}\s+/, "");
+      html.push("<p><strong>" + renderInline(content) + "</strong></p>");
+      i++;
+      continue;
+    }
+
+    // Párrafo: líneas seguidas hasta una línea en blanco u otro bloque
+    const para = [];
+    while (
+      i < lines.length && !isBlank(lines[i]) && !isBullet(lines[i]) &&
+      !isNumbered(lines[i]) && !isHeading(lines[i])
+    ) {
+      para.push(renderInline(lines[i]));
+      i++;
+    }
+    html.push("<p>" + para.join("<br>") + "</p>");
+  }
+
+  return html.join("");
 }
 
 function scrollToBottom() {
@@ -604,6 +815,44 @@ if (newConvBtn) {
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeDrawer();
 });
+
+// ---- 13. Tema claro/oscuro ----
+// El tema inicial ya lo fijó el script inline del <head> (anti-parpadeo).
+// Aquí solo gestionamos el botón y la preferencia del sistema.
+const THEME_KEY = "mentor_udd_theme";
+const themeBtn = document.getElementById("themeBtn");
+
+function currentTheme() {
+  return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  if (themeBtn) {
+    themeBtn.setAttribute(
+      "aria-label",
+      theme === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro"
+    );
+  }
+}
+
+function toggleTheme() {
+  const next = currentTheme() === "dark" ? "light" : "dark";
+  applyTheme(next);
+  try { localStorage.setItem(THEME_KEY, next); } catch (_) {}
+}
+
+applyTheme(currentTheme()); // fija el aria-label acorde al tema ya aplicado
+if (themeBtn) themeBtn.addEventListener("click", toggleTheme);
+
+// Si el usuario NO eligió tema, sigue la preferencia del sistema en vivo.
+try {
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+    let saved = null;
+    try { saved = localStorage.getItem(THEME_KEY); } catch (_) {}
+    if (saved !== "light" && saved !== "dark") applyTheme(e.matches ? "dark" : "light");
+  });
+} catch (_) {}
 
 // ---- 12. Arranque ----
 (function initConversations() {
